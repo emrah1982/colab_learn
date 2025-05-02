@@ -11,3 +11,4 @@ Pillow>=9.0.0
 tqdm>=4.64.0
 pandas==1.5.3
 seaborn==0.12.2
+google-colab
