@@ -6,16 +6,36 @@ import sys
 import subprocess
 import torch
 
-def install_required_packages(required_packages):
-    """Check and install required packages if not available"""
+def install_required_packages(required_packages=None):
+    """
+    Check and install required packages from requirements.txt if available
+    Otherwise, install specific packages provided
+    """
+    # First check if requirements.txt exists
+    if os.path.exists('requirements.txt'):
+        print("Installing packages from requirements.txt...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+        print("All packages from requirements.txt installed successfully!")
+        return
+        
+    # If no requirements.txt and no packages specified, install defaults
+    if required_packages is None:
+        required_packages = ['ultralytics==8.0.196', 'torch==2.0.1', 'pyyaml==6.0', 'psutil']
+    
+    # Install specified packages
     for package in required_packages:
         try:
-            __import__(package)
-            print(f"{package} is already installed.")
+            if '==' in package:
+                package_name = package.split('==')[0]
+            else:
+                package_name = package
+                
+            __import__(package_name)
+            print(f"{package_name} is already installed.")
         except ImportError:
-            print(f"{package} not found. Installing...")
+            print(f"{package_name} not found. Installing...")
             subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-            print(f"{package} successfully installed!")
+            print(f"{package_name} successfully installed!")
 
 def check_gpu():
     """Check GPU status and return appropriate device setting"""
@@ -99,6 +119,16 @@ def check_environment():
     # Check if in Colab
     in_colab = 'google.colab' in sys.modules
     print(f"Running in Google Colab: {in_colab}")
+    
+    # Check for compatible ultralytics version
+    try:
+        import ultralytics
+        print(f"Ultralytics version: {ultralytics.__version__}")
+        if ultralytics.__version__.startswith("8.1") or ultralytics.__version__.startswith("8.2"):
+            print("Warning: Using a newer ultralytics version that may have compatibility issues.")
+            print("Recommended version: 8.0.196")
+    except ImportError:
+        print("Ultralytics not installed")
     
     return {
         "python_version": python_version,
