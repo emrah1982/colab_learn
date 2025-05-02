@@ -7,39 +7,8 @@ import yaml
 import torch
 import shutil
 from pathlib import Path
-import subprocess
-
-# First ensure we have a compatible ultralytics version
-def ensure_compatible_ultralytics():
-    """Ensure we have a compatible version of ultralytics"""
-    try:
-        import ultralytics
-        current_version = ultralytics.__version__
-        print(f"Current ultralytics version: {current_version}")
-        
-        # Check if version is too new (8.1.0 or above likely has the PyTorch 2.6 compatibility issue)
-        if current_version.startswith("8.1") or current_version.startswith("8.2") or current_version.startswith("8.3"):
-            print("Detected newer ultralytics version. Downgrading to a compatible version...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "ultralytics==8.0.196", "--force-reinstall"])
-            print("Ultralytics downgraded to version 8.0.196")
-            
-            # Reload the ultralytics module
-            import importlib
-            importlib.reload(ultralytics)
-            
-            # Re-check version after downgrade
-            from ultralytics import __version__ as new_version
-            print(f"New ultralytics version: {new_version}")
-        
-    except Exception as e:
-        print(f"Error checking/updating ultralytics version: {e}")
-        print("Attempting to proceed with current version...")
-
-# Call this at import time
-ensure_compatible_ultralytics()
-
-# Now import YOLO after ensuring compatible version
 from ultralytics import YOLO
+
 from memory_utils import show_memory_usage, clean_memory, run_training_with_memory_cleanup
 
 def train_model(options, hyp=None, resume=False, epochs=None):
@@ -105,35 +74,21 @@ def train_model(options, hyp=None, resume=False, epochs=None):
                 print(f"Error copying to Drive: {e}")
 
     try:
-        # Handle PyTorch 2.6 compatibility issue for model loading
-        print("Attempting to load model with PyTorch compatibility settings...")
+        # Handle PyTorch model loading with compatibility settings
+        print("Attempting to load model...")
         
-        # Approach 1: Try with safety settings (for PyTorch 2.6+)
         try:
-            # Try using the safe_globals context manager if available
-            import torch.serialization
-            from contextlib import nullcontext
-            
-            try:
-                # Try to import the specific class to allow it
-                from ultralytics.nn.tasks import DetectionModel
-                context = torch.serialization.safe_globals([DetectionModel])
-            except (ImportError, AttributeError):
-                # If not found or not available, use nullcontext
-                context = nullcontext()
-                
-            with context:
-                model = YOLO(model_path)
-                print(f"Model loaded successfully with compatibility mode: {model_path}")
-                
+            # First try normal loading
+            model = YOLO(model_path)
+            print(f"Model loaded successfully: {model_path}")
         except Exception as e1:
-            print(f"First loading attempt failed: {e1}")
+            print(f"Standard loading attempt failed: {e1}")
             
-            # Approach 2: Try with older loading method
+            # Try with alternative PyTorch loading options
             try:
-                # For older PyTorch versions or if context manager failed
+                # For PyTorch 2.6+ with weights_only=False
                 if hasattr(torch, '_C') and hasattr(torch._C, '_loading_deserializer_set_weights_only'):
-                    # Override weights_only setting temporarily
+                    print("Trying with weights_only=False...")
                     original_value = torch._C._loading_deserializer_set_weights_only(False)
                     try:
                         model = YOLO(model_path)
@@ -142,25 +97,23 @@ def train_model(options, hyp=None, resume=False, epochs=None):
                         # Reset to original value
                         torch._C._loading_deserializer_set_weights_only(original_value)
                 else:
-                    # Last resort: just try to load anyway
-                    model = YOLO(model_path)
-                    print(f"Model loaded successfully: {model_path}")
-                    
+                    raise Exception("Could not set weights_only parameter")
             except Exception as e2:
-                print(f"Second loading attempt failed: {e2}")
-                raise Exception(f"All model loading attempts failed for {model_path}")
+                print(f"Alternative loading attempt failed: {e2}")
+                
+                # Try using standard YOLOv8 model as a fallback
+                print("Attempting to use standard YOLOv8 model instead...")
+                try:
+                    model = YOLO('yolov8l.pt')  # Use standard YOLOv8 model as fallback
+                    print("Using standard YOLOv8l model as fallback")
+                    options['model'] = 'yolov8l.pt'
+                except Exception as e3:
+                    print(f"Fallback model loading failed: {e3}")
+                    raise Exception("All model loading attempts failed")
                 
     except Exception as e:
         print(f"Model loading error: {e}")
-        # Try to use standard detection model instead of loading from file
-        try:
-            print("Attempting to use default YOLO model instead...")
-            model = YOLO('yolov8l.pt')  # Use standard YOLOv8 model as fallback
-            print("Using standard YOLOv8l model as fallback")
-            options['model'] = 'yolov8l.pt'
-        except Exception as fallback_error:
-            print(f"Error loading default model: {fallback_error}")
-            return None
+        return None
 
     # Settings for periodic memory cleanup
     cleanup_frequency = int(input("\nRAM cleanup frequency (clean every N epochs? e.g., 10): ") or "10")
@@ -273,32 +226,22 @@ def validate_model(model_path, data_yaml, batch_size=16, img_size=640):
         print(f"\n===== Model Validation =====")
         print(f"Loading model: {model_path}")
         
-        # Load the model with compatibility mode
+        # Load the model with compatibility settings
         try:
-            import torch.serialization
-            from contextlib import nullcontext
+            model = YOLO(model_path)
+        except Exception as e:
+            print(f"Standard model loading failed: {e}")
             
-            try:
-                # Try to import the specific class to allow it
-                from ultralytics.nn.tasks import DetectionModel
-                context = torch.serialization.safe_globals([DetectionModel])
-            except (ImportError, AttributeError):
-                # If not found or not available, use nullcontext
-                context = nullcontext()
-                
-            with context:
-                model = YOLO(model_path)
-                
-        except Exception:
-            # Fallback approach for older PyTorch
+            # Try with alternative loading method
             if hasattr(torch, '_C') and hasattr(torch._C, '_loading_deserializer_set_weights_only'):
+                print("Trying with weights_only=False...")
                 original_value = torch._C._loading_deserializer_set_weights_only(False)
                 try:
                     model = YOLO(model_path)
                 finally:
                     torch._C._loading_deserializer_set_weights_only(original_value)
             else:
-                model = YOLO(model_path)
+                raise Exception("Could not load model with alternate method")
         
         # Run validation
         print(f"Running validation on: {data_yaml}")
@@ -330,32 +273,22 @@ def export_model(model_path, format='onnx', img_size=640, simplify=True):
         print(f"\n===== Model Export =====")
         print(f"Loading model: {model_path}")
         
-        # Load the model with compatibility mode
+        # Load the model with compatibility settings
         try:
-            import torch.serialization
-            from contextlib import nullcontext
+            model = YOLO(model_path)
+        except Exception as e:
+            print(f"Standard model loading failed: {e}")
             
-            try:
-                # Try to import the specific class to allow it
-                from ultralytics.nn.tasks import DetectionModel
-                context = torch.serialization.safe_globals([DetectionModel])
-            except (ImportError, AttributeError):
-                # If not found or not available, use nullcontext
-                context = nullcontext()
-                
-            with context:
-                model = YOLO(model_path)
-                
-        except Exception:
-            # Fallback approach for older PyTorch
+            # Try with alternative loading method
             if hasattr(torch, '_C') and hasattr(torch._C, '_loading_deserializer_set_weights_only'):
+                print("Trying with weights_only=False...")
                 original_value = torch._C._loading_deserializer_set_weights_only(False)
                 try:
                     model = YOLO(model_path)
                 finally:
                     torch._C._loading_deserializer_set_weights_only(original_value)
             else:
-                model = YOLO(model_path)
+                raise Exception("Could not load model with alternate method")
         
         # Available formats
         formats = ['torchscript', 'onnx', 'openvino', 'engine', 'coreml', 'saved_model', 
