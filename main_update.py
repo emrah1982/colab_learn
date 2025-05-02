@@ -142,7 +142,15 @@ def interactive_setup():
             model = model_options[model_choice]
             
             # Check if model exists, offer to download if not
-            model_dir = os.path.join(os.getcwd(), "yolo11_models")
+            #model_dir = os.path.join(os.getcwd(), "yolo11_models")
+            # Colab için doğrudan ana dizine kaydet
+            if 'google.colab' in sys.modules:
+                model_dir = "/content/yolo11_models"
+            else:
+                model_dir = os.path.join(os.getcwd(), "yolo11_models")
+
+
+            
             model_path = os.path.join(model_dir, model)
             
             if not os.path.exists(model_path):
