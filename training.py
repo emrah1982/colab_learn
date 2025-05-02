@@ -107,7 +107,7 @@ def train_model(options, hyp=None, resume=False, epochs=None):
         'batch': options['batch'],
         'project': options.get('project', 'runs/train'),
         'name': options.get('name', 'exp'),
-        'device': options.get('device', 'cpu'),  # Default to CPU
+        'device': '0' if torch.cuda.is_available() else 'cpu',  # Use GPU 0 if available or CPU
         'workers': options.get('workers', 8),
         'exist_ok': options.get('exist_ok', False),
         'pretrained': options.get('pretrained', True),
