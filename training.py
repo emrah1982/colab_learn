@@ -117,7 +117,7 @@ def train_model(options, hyp=None, resume=False, epochs=None):
         'seed': options.get('seed', 0),
         'cache': use_cache,  # Cache dataset - improves training performance
         'resume': resume,  # Resume from checkpoint
-        #'nolog': True,  # TensorBoard'u devre dışı bırak - BURAYI EKLEYİN
+        'nolog': True,  # TensorBoard'u devre dışı bırak - BURAYI EKLEYİN
         # 'callbacks' parametresini kaldırdık
     }
 
