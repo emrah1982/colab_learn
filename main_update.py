@@ -28,13 +28,9 @@ def download_models_menu():
     """Interactive menu for downloading YOLO11 models"""
     print("\n===== YOLO11 Model Download =====")
     
-    # Ask for save directory
-    # Colab için doğrudan ana dizine kaydet
-    if 'google.colab' in sys.modules:
-        default_dir = "/content/yolo11_models"
-    else:
-        default_dir = os.path.join(os.getcwd(), "yolo11_models")
-
+    # Ask for save directory - Updated default path here
+    default_dir = os.path.join("/content/colab_learn", "yolo11_models")
+    save_dir = input(f"\nSave directory (default: {default_dir}): ") or default_dir
     
     # Ask for download type
     print("\nDownload options:")
@@ -142,15 +138,8 @@ def interactive_setup():
             model = model_options[model_choice]
             
             # Check if model exists, offer to download if not
-            #model_dir = os.path.join(os.getcwd(), "yolo11_models")
-            # Colab için doğrudan ana dizine kaydet
-            if 'google.colab' in sys.modules:
-                model_dir = "/content/yolo11_models"
-            else:
-                model_dir = os.path.join(os.getcwd(), "yolo11_models")
-
-
-            
+            # Updated default model directory path
+            model_dir = os.path.join("/content/colab_learn", "yolo11_models")
             model_path = os.path.join(model_dir, model)
             
             if not os.path.exists(model_path):
