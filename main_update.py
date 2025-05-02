@@ -9,7 +9,7 @@ from pathlib import Path
 from setup_utils import check_gpu, install_required_packages
 from hyperparameters import create_hyperparameters_file, load_hyperparameters
 from dataset_utils import download_dataset, fix_directory_structure, update_dataset_yaml
-from memory_utils import run_training_with_memory_cleanup, show_memory_usage, clean_memory
+from memory_utils import show_memory_usage, clean_memory
 from training import train_model, save_to_drive
 from model_downloader import download_yolo11_models, download_specific_model_type
 
@@ -235,8 +235,8 @@ def main():
         # Check environment
         in_colab = is_colab()
         
-        # Install required packages
-        install_required_packages(['ultralytics', 'pyyaml'])
+        # Install required packages from requirements.txt
+        install_required_packages()
 
         # Create or use existing hyperparameter file
         hyp_path = create_hyperparameters_file()
@@ -256,7 +256,7 @@ def main():
             print('Please enter a valid Roboflow URL.')
             return
 
-        # Train the model
+        # Train the model - artık run_training_with_memory_cleanup kullanmıyoruz
         results = train_model(options, hyp=hyperparameters, resume=options.get('resume', False), epochs=options['epochs'])
 
         if results:
