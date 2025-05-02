@@ -11,6 +11,9 @@ from ultralytics import YOLO
 
 from memory_utils import show_memory_usage, clean_memory
 
+# TensorBoard entegrasyonunu devre dışı bırak
+os.environ["TENSORBOARD_BINARY"] = "False"
+
 def train_model(options, hyp=None, resume=False, epochs=None):
     """Train YOLO11 model"""
     # Model selection - Check if it's a full path or just a filename
@@ -99,8 +102,7 @@ def train_model(options, hyp=None, resume=False, epochs=None):
     use_cache = input("\nCache dataset? (y/n) (default: y): ").lower() or "y"
     use_cache = use_cache.startswith("y")
 
-    # Set training parameters - callback'leri çıkardık
-  # Set training parameters - callback'leri çıkardık
+    # Set training parameters - nolog parametresini kaldırdık
     train_args = {
         'data': options['data'],
         'epochs': epochs if epochs is not None else options['epochs'],
@@ -108,7 +110,7 @@ def train_model(options, hyp=None, resume=False, epochs=None):
         'batch': options['batch'],
         'project': options.get('project', 'runs/train'),
         'name': options.get('name', 'exp'),
-        'device': '0' if torch.cuda.is_available() else 'cpu',
+        'device': '0' if torch.cuda.is_available() else 'cpu',  # Use GPU 0 if available or CPU
         'workers': options.get('workers', 8),
         'exist_ok': options.get('exist_ok', False),
         'pretrained': options.get('pretrained', True),
@@ -117,8 +119,7 @@ def train_model(options, hyp=None, resume=False, epochs=None):
         'seed': options.get('seed', 0),
         'cache': use_cache,  # Cache dataset - improves training performance
         'resume': resume,  # Resume from checkpoint
-        'nolog': True,  # TensorBoard'u devre dışı bırak - BURAYI EKLEYİN
-        # 'callbacks' parametresini kaldırdık
+        # 'nolog' parametresini kaldırdık - bu parametre desteklenmiyor
     }
 
     # Add hyperparameters if available (as fixed constants, not as hyp.yaml file!)
@@ -157,6 +158,41 @@ def train_model(options, hyp=None, resume=False, epochs=None):
     try:
         # Manage model training with periodic memory cleanup
         print("\n--- Training Model ---")
+        
+        # TensorBoard ve callbacks ayarları - model çağrılmadan önce ayarlama
+        if hasattr(model, 'callbacks') and model.callbacks is not None:
+            # Eğer model callbacks'e sahipse
+            try:
+                # TensorBoard callback'ini devre dışı bırak
+                model._callbacks = []  # Tüm callbacks'leri temizle ve yeniden ekle
+                # Sadece gerekli callback'leri ekle (TensorBoard hariç)
+            except Exception as cb_err:
+                print(f"Callback devre dışı bırakma hatası: {cb_err}")
+        
+        # Periyodik temizleme için manuel callback sınıfı
+        class MemoryCleanupCallback:
+            def __init__(self, cleanup_frequency):
+                self.cleanup_frequency = cleanup_frequency
+            
+            def __call__(self, trainer):
+                if hasattr(trainer, 'epoch'):
+                    current_epoch = trainer.epoch + 1
+                    if current_epoch % self.cleanup_frequency == 0:
+                        print(f"\n--- Memory cleanup at epoch {current_epoch} ---")
+                        # RAM ve GPU belleği temizle
+                        import gc
+                        gc.collect()
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+        
+        # Callback'i model nesnesine ekle (eğer destekleniyorsa)
+        try:
+            if hasattr(model, 'add_callback'):
+                model.add_callback("on_train_epoch_end", MemoryCleanupCallback(cleanup_frequency))
+        except Exception as add_cb_err:
+            print(f"Callback ekleme hatası: {add_cb_err}")
+            
+        # Model eğitimini başlat
         results = model.train(**train_args)
         
         # Periyodik olarak manuel kaydet (ultralytics callback'ini kullanamıyorsak)
