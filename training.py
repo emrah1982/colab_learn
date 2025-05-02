@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 from ultralytics import YOLO
 
-from memory_utils import show_memory_usage, clean_memory, run_training_with_memory_cleanup
+from memory_utils import show_memory_usage, clean_memory
 
 def train_model(options, hyp=None, resume=False, epochs=None):
     """Train YOLO11 model"""
@@ -51,27 +51,6 @@ def train_model(options, hyp=None, resume=False, epochs=None):
 
     # Set epoch save interval
     save_interval = int(input("\nHow often to save the model (epochs)? (default: 50): ") or "50")
-
-    # Define custom callback function for periodic saving
-    def save_periodic_model(trainer):
-        current_epoch = trainer.epoch + 1  # Epoch count starts from 0 so add 1
-        if current_epoch % save_interval == 0:
-            # Set path for periodic save
-            periodic_save_path = Path(trainer.save_dir) / "weights" / f"epoch_{current_epoch}.pt"
-            trainer.model.save(periodic_save_path)
-            print(f"\n--- Model saved for epoch {current_epoch}: {periodic_save_path} ---")
-
-            # Also copy to Google Drive (if running in Colab)
-            try:
-                if 'google.colab' in sys.modules:
-                    drive_folder = "/content/drive/MyDrive/Tarim/YapayZeka_model/Model/YOLO11_Egitim"
-                    os.makedirs(drive_folder, exist_ok=True)
-                    drive_path = f"{drive_folder}/epoch_{current_epoch}.pt"
-                    import shutil
-                    shutil.copy(str(periodic_save_path), drive_path)
-                    print(f"Epoch {current_epoch} model also saved to Drive: {drive_path}")
-            except Exception as e:
-                print(f"Error copying to Drive: {e}")
 
     try:
         # Handle PyTorch model loading with compatibility settings
@@ -120,7 +99,7 @@ def train_model(options, hyp=None, resume=False, epochs=None):
     use_cache = input("\nCache dataset? (y/n) (default: y): ").lower() or "y"
     use_cache = use_cache.startswith("y")
 
-    # Set training parameters
+    # Set training parameters - callback'leri çıkardık
     train_args = {
         'data': options['data'],
         'epochs': epochs if epochs is not None else options['epochs'],
@@ -137,7 +116,7 @@ def train_model(options, hyp=None, resume=False, epochs=None):
         'seed': options.get('seed', 0),
         'cache': use_cache,  # Cache dataset - improves training performance
         'resume': resume,  # Resume from checkpoint
-        'callbacks': [save_periodic_model],  # Add custom callback
+        # 'callbacks' parametresini kaldırdık
     }
 
     # Add hyperparameters if available (as fixed constants, not as hyp.yaml file!)
@@ -168,13 +147,53 @@ def train_model(options, hyp=None, resume=False, epochs=None):
     # Show memory status before training
     show_memory_usage("Training Start Memory Status")
 
-    # Manage model training with periodic memory cleanup
-    results = run_training_with_memory_cleanup(model, train_args, cleanup_frequency)
+    # Manuel olarak memory clean up yapan callback oluştur
+    project_dir = train_args.get('project', 'runs/train')
+    experiment_name = train_args.get('name', 'exp')
+    save_interval_epochs = save_interval
 
-    # Clean memory after training
-    clean_memory()
-
-    return results
+    try:
+        # Manage model training with periodic memory cleanup
+        print("\n--- Training Model ---")
+        results = model.train(**train_args)
+        
+        # Periyodik olarak manuel kaydet (ultralytics callback'ini kullanamıyorsak)
+        if results is not None:
+            try:
+                save_dir = os.path.join(project_dir, experiment_name)
+                best_path = os.path.join(save_dir, "weights", "best.pt")
+                if os.path.exists(best_path):
+                    # Periyodik olarak en iyi modeli kopyala
+                    for i in range(save_interval_epochs, int(train_args['epochs']), save_interval_epochs):
+                        save_path = os.path.join(save_dir, "weights", f"epoch_{i}.pt")
+                        if not os.path.exists(save_path) and os.path.exists(best_path):
+                            shutil.copy(best_path, save_path)
+                            print(f"\n--- Model saved for epoch {i}: {save_path} ---")
+            except Exception as save_e:
+                print(f"Error saving periodic model snapshots: {save_e}")
+        
+        # Show memory status after training
+        show_memory_usage("After Training")
+        
+        # Clean memory after training
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        return results
+    except Exception as e:
+        print(f"Error during training: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Clean memory after error
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
+        return None
 
 def save_to_drive(options, results=None):
     """Save trained model to Google Drive (for Colab)"""
