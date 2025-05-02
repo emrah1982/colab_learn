@@ -66,8 +66,22 @@ def train_model(options, hyp=None, resume=False, epochs=None):
 
     try:
         # Load model
+        #model = YOLO(model_path)
+        #print(f"Model loaded successfully: {model_path}")
+        # Şu satırdan önce (68. satır civarı):
         model = YOLO(model_path)
-        print(f"Model loaded successfully: {model_path}")
+        
+        # Aşağıdaki kontrol kodunu ekleyin:
+        # Model dosya yolu kontrolü - Colab'daki yol sorununu düzelt
+        if 'google.colab' in sys.modules:
+            # Eğer model yolu belirlediğimiz klasöre aitse
+            if model_path.startswith('yolo11') and model_path.endswith('.pt'):
+                # Doğrudan /content altına bak
+                if os.path.exists(f"/content/{model_path}"):
+                    model_path = f"/content/{model_path}"
+                elif os.path.exists(f"/content/yolo11_models/{model_path}"):
+                    model_path = f"/content/yolo11_models/{model_path}"
+            print(f"Kontrol edilen model yolu: {model_path}")
     except Exception as e:
         print(f"Model loading error: {e}")
         print("Trying alternative model...")
