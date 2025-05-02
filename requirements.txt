@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ultralytics>=8.0.0
 torch>=1.8.0
 psutil>=5.0.0
@@ -7,3 +8,12 @@ numpy>=1.18.0
 matplotlib>=3.2.0
 Pillow>=7.1.2
 tqdm>=4.64.0
+=======
+ultralytics==8.1.8
+torch==2.1.0
+opencv-python==4.7.0.72
+numpy==1.23.5
+matplotlib==3.7.1
+pyyaml==6.0
+psutil==5.9.4
+>>>>>>> 05176c4c4045f50f94e9ab039641ea523c75079d
