@@ -46,56 +46,13 @@ def clean_memory():
     # Show status after cleanup
     show_memory_usage("After Cleanup")
 
+# Bu fonksiyon artık gerekli değil, çünkü callbacks ultralytics'in yeni sürümlerinde farklı şekilde çalışıyor
+# Bunun yerine training.py içinde doğrudan temizleme yapıyoruz
+"""
 def run_training_with_memory_cleanup(model, train_args, cleanup_frequency=10):
-    """
-    Run model training with periodic memory cleanup
-    
-    Args:
-        model: YOLO model
-        train_args: Training parameters
-        cleanup_frequency: How often (in epochs) to clean memory
-    
-    Returns:
-        Training results
-    """
-    # Save original callbacks
-    original_callbacks = train_args.get('callbacks', [])
-    
-    # Periodic memory cleanup callback
-    def memory_cleanup_callback(trainer):
-        current_epoch = trainer.epoch + 1  # Add 1 because epoch starts at 0
-        
-        # Perform memory cleanup at specified intervals
-        if current_epoch % cleanup_frequency == 0:
-            print(f"\n--- Epoch {current_epoch}: Cleaning memory... ---")
-            # Clean memory
-            clean_memory()
-            
-            # Short pause after cleanup
-            time.sleep(1)
-    
-    # Add memory cleanup callback to existing callbacks
-    if isinstance(original_callbacks, list):
-        train_args['callbacks'] = original_callbacks + [memory_cleanup_callback]
-    else:
-        train_args['callbacks'] = [original_callbacks, memory_cleanup_callback]
-    
-    # Show memory status before training
-    show_memory_usage("Training Start")
-    
-    try:
-        # Train model
-        results = model.train(**train_args)
-        
-        # Show memory status after training
-        show_memory_usage("After Training")
-        
-        return results
-    except Exception as e:
-        print(f"Error during training: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+    # Bu fonksiyon artık kullanılmıyor
+    pass
+"""
 
 def monitor_memory_usage(interval=60):
     """
