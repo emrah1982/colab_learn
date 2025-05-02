@@ -9,8 +9,9 @@ from pathlib import Path
 from setup_utils import check_gpu, install_required_packages
 from hyperparameters import create_hyperparameters_file, load_hyperparameters
 from dataset_utils import download_dataset, fix_directory_structure, update_dataset_yaml
-from memory_utils import run_training_with_memory_cleanup, show_memory_usage, clean_memory
+from memory_utils import show_memory_usage, clean_memory
 from training import train_model, save_to_drive
+from model_downloader import download_yolo11_models, download_specific_model_type
 
 # Check if running in Colab
 def is_colab():
@@ -22,6 +23,81 @@ def is_colab():
     except:
         print("Running in local environment.")
         return False
+
+def download_models_menu():
+    """Interactive menu for downloading YOLO11 models"""
+    print("\n===== YOLO11 Model Download =====")
+    
+    # Ask for save directory - Updated default path here
+    default_dir = os.path.join("/content/colab_learn", "yolo11_models")
+    save_dir = input(f"\nSave directory (default: {default_dir}): ") or default_dir
+    
+    # Ask for download type
+    print("\nDownload options:")
+    print("1. Download single model")
+    print("2. Download all detection models")
+    print("3. Download all models (all types)")
+    
+    choice = input("\nYour choice (1-3): ")
+    
+    if choice == "1":
+        # Single model download
+        print("\nSelect model type:")
+        print("1. Detection (default)")
+        print("2. Segmentation")
+        print("3. Classification")
+        print("4. Pose")
+        print("5. OBB (Oriented Bounding Box)")
+        
+        model_type_map = {
+            "1": "detection",
+            "2": "segmentation",
+            "3": "classification",
+            "4": "pose",
+            "5": "obb"
+        }
+        
+        model_type_choice = input("Enter choice (1-5, default: 1): ") or "1"
+        model_type = model_type_map.get(model_type_choice, "detection")
+        
+        # Ask for model size
+        print("\nSelect model size:")
+        print("1. Small (s)")
+        print("2. Medium (m) (default)")
+        print("3. Large (l)")
+        print("4. Extra Large (x)")
+        
+        size_map = {
+            "1": "s",
+            "2": "m",
+            "3": "l",
+            "4": "x"
+        }
+        
+        size_choice = input("Enter choice (1-4, default: 2): ") or "2"
+        size = size_map.get(size_choice, "m")
+        
+        # Download the selected model
+        model_path = download_specific_model_type(model_type, size, save_dir)
+        if model_path:
+            print(f"\nModel downloaded successfully to: {model_path}")
+    
+    elif choice == "2":
+        # Download all detection models
+        detection_models = ["yolo11s.pt", "yolo11m.pt", "yolo11l.pt", "yolo11x.pt"]
+        downloaded = download_yolo11_models(save_dir, detection_models)
+        print(f"\nDownloaded {len(downloaded)} detection models to {save_dir}")
+    
+    elif choice == "3":
+        # Download all models
+        downloaded = download_yolo11_models(save_dir)
+        print(f"\nDownloaded {len(downloaded)} models to {save_dir}")
+    
+    else:
+        print("\nInvalid choice. No models downloaded.")
+        return None
+    
+    return save_dir
 
 def interactive_setup():
     """Interactively collect training parameters from the user"""
@@ -60,6 +136,22 @@ def interactive_setup():
         }
         if model_choice in model_options:
             model = model_options[model_choice]
+            
+            # Check if model exists, offer to download if not
+            # Updated default model directory path
+            model_dir = os.path.join("/content/colab_learn", "yolo11_models")
+            model_path = os.path.join(model_dir, model)
+            
+            if not os.path.exists(model_path):
+                print(f"\nModel {model} not found locally.")
+                download_now = input("Would you like to download it now? (y/n, default: y): ").lower() or "y"
+                
+                if download_now.startswith("y"):
+                    os.makedirs(model_dir, exist_ok=True)
+                    download_specific_model_type("detection", model[6], model_dir)
+                else:
+                    print(f"Model will be automatically downloaded during training.")
+            
             break
         print("Please select a number between 1-5.")
 
@@ -124,42 +216,64 @@ def interactive_setup():
 
 def main():
     """Main function - optimized for Colab"""
-    # Check environment
-    in_colab = is_colab()
+    print("\n===== YOLO11 Training Framework =====")
+    print("1. Download models")
+    print("2. Training setup")
+    print("3. Exit")
     
-    # Install required packages
-    install_required_packages(['ultralytics', 'pyyaml'])
-
-    # Create or use existing hyperparameter file
-    hyp_path = create_hyperparameters_file()
-    hyperparameters = load_hyperparameters(hyp_path)
-
-    # Interactive setup
-    options = interactive_setup()
-    if options is None:
-        return
-
-    # Download dataset if Roboflow URL is provided
-    if 'roboflow_url' in options and options['roboflow_url']:
-        if not download_dataset(options['roboflow_url']):
-            print('Failed to download dataset. Exiting...')
+    choice = input("\nSelect an option (1-3): ")
+    
+    if choice == "1":
+        # Download models
+        download_models_menu()
+        # After downloading, ask if they want to continue to training
+        train_now = input("\nProceed to training setup? (y/n, default: y): ").lower() or "y"
+        if not train_now.startswith("y"):
             return
+        
+    if choice == "1" or choice == "2":
+        # Check environment
+        in_colab = is_colab()
+        
+        # Install required packages from requirements.txt
+        install_required_packages()
+
+        # Create or use existing hyperparameter file
+        hyp_path = create_hyperparameters_file()
+        hyperparameters = load_hyperparameters(hyp_path)
+
+        # Interactive setup
+        options = interactive_setup()
+        if options is None:
+            return
+
+        # Download dataset if Roboflow URL is provided
+        if 'roboflow_url' in options and options['roboflow_url']:
+            if not download_dataset(options['roboflow_url']):
+                print('Failed to download dataset. Exiting...')
+                return
+        else:
+            print('Please enter a valid Roboflow URL.')
+            return
+
+        # Train the model - artık run_training_with_memory_cleanup kullanmıyoruz
+        results = train_model(options, hyp=hyperparameters, resume=options.get('resume', False), epochs=options['epochs'])
+
+        if results:
+            print('Training completed!')
+            print(f'Results: {results}')
+        else:
+            print('Training failed or was interrupted.')
+
+        # Save to Drive if in Colab
+        if in_colab:
+            save_to_drive(options, results)
+    
+    elif choice == "3":
+        print("Exiting...")
+    
     else:
-        print('Please enter a valid Roboflow URL.')
-        return
-
-    # Train the model
-    results = train_model(options, hyp=hyperparameters, resume=options.get('resume', False), epochs=options['epochs'])
-
-    if results:
-        print('Training completed!')
-        print(f'Results: {results}')
-    else:
-        print('Training failed or was interrupted.')
-
-    # Save to Drive if in Colab
-    if in_colab:
-        save_to_drive(options, results)
+        print("Invalid choice. Exiting...")
 
 if __name__ == "__main__":
     try:
