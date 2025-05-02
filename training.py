@@ -13,9 +13,18 @@ from memory_utils import show_memory_usage, clean_memory, run_training_with_memo
 
 def train_model(options, hyp=None, resume=False, epochs=None):
     """Train YOLO11 model"""
-    # Model selection
+    # Model selection - Check if it's a full path or just a filename
     model_path = options['model']
-
+    
+    # If it's just a filename and not a full path, check in the yolo11_models directory
+    if not os.path.isabs(model_path) and not os.path.exists(model_path):
+        yolo_models_dir = os.path.join("/content/colab_learn", "yolo11_models")
+        full_model_path = os.path.join(yolo_models_dir, os.path.basename(model_path))
+        
+        if os.path.exists(full_model_path):
+            print(f"Found model at: {full_model_path}")
+            model_path = full_model_path
+    
     print(f"Loading model: {model_path}")
     # Check model path - YOLO will download automatically if file doesn't exist
     if not os.path.exists(model_path) and model_path.startswith('yolo11') and model_path.endswith('.pt'):
@@ -66,30 +75,36 @@ def train_model(options, hyp=None, resume=False, epochs=None):
 
     try:
         # Load model
-        #model = YOLO(model_path)
-        #print(f"Model loaded successfully: {model_path}")
-        # Şu satırdan önce (68. satır civarı):
         model = YOLO(model_path)
-        
-        # Aşağıdaki kontrol kodunu ekleyin:
-        # Model dosya yolu kontrolü - Colab'daki yol sorununu düzelt
-        if 'google.colab' in sys.modules:
-            # Eğer model yolu belirlediğimiz klasöre aitse
-            if model_path.startswith('yolo11') and model_path.endswith('.pt'):
-                # Doğrudan /content altına bak
-                if os.path.exists(f"/content/{model_path}"):
-                    model_path = f"/content/{model_path}"
-                elif os.path.exists(f"/content/yolo11_models/{model_path}"):
-                    model_path = f"/content/yolo11_models/{model_path}"
-            print(f"Kontrol edilen model yolu: {model_path}")
+        print(f"Model loaded successfully: {model_path}")
     except Exception as e:
         print(f"Model loading error: {e}")
-        print("Trying alternative model...")
-        # Fall back to yolo11l.pt model
-        model = YOLO('yolo11l.pt')
-        print("Using yolo11l.pt model.")
-        model_path = 'yolo11l.pt'
-        options['model'] = model_path
+        # Try to use alternative model from yolo11_models directory
+        try:
+            model_name = os.path.basename(model_path)
+            alt_model_path = os.path.join("/content/colab_learn/yolo11_models", model_name)
+            print(f"Trying alternative model path: {alt_model_path}")
+            
+            if os.path.exists(alt_model_path):
+                model = YOLO(alt_model_path)
+                print(f"Model loaded successfully from alternative path: {alt_model_path}")
+                model_path = alt_model_path
+                options['model'] = model_path
+            else:
+                print(f"Alternative model not found at {alt_model_path}")
+                # Fall back to yolo11m.pt model which should be available
+                print("Trying to load yolo11m.pt model as fallback...")
+                alt_model_path = os.path.join("/content/colab_learn/yolo11_models", "yolo11m.pt")
+                if os.path.exists(alt_model_path):
+                    model = YOLO(alt_model_path)
+                    print(f"Fallback model loaded: {alt_model_path}")
+                    model_path = alt_model_path
+                    options['model'] = model_path
+                else:
+                    raise Exception(f"No suitable model found. Please download models first.")
+        except Exception as fallback_error:
+            print(f"Error loading alternative model: {fallback_error}")
+            return None
 
     # Settings for periodic memory cleanup
     cleanup_frequency = int(input("\nRAM cleanup frequency (clean every N epochs? e.g., 10): ") or "10")
