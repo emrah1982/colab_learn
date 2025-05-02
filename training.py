@@ -100,6 +100,7 @@ def train_model(options, hyp=None, resume=False, epochs=None):
     use_cache = use_cache.startswith("y")
 
     # Set training parameters - callback'leri çıkardık
+  # Set training parameters - callback'leri çıkardık
     train_args = {
         'data': options['data'],
         'epochs': epochs if epochs is not None else options['epochs'],
@@ -116,6 +117,7 @@ def train_model(options, hyp=None, resume=False, epochs=None):
         'seed': options.get('seed', 0),
         'cache': use_cache,  # Cache dataset - improves training performance
         'resume': resume,  # Resume from checkpoint
+        'nolog': True,  # TensorBoard'u devre dışı bırak - BURAYI EKLEYİN
         # 'callbacks' parametresini kaldırdık
     }
 
