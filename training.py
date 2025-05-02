@@ -71,10 +71,10 @@ def train_model(options, hyp=None, resume=False, epochs=None):
     except Exception as e:
         print(f"Model loading error: {e}")
         print("Trying alternative model...")
-        # Fall back to yolo11n.pt model
-        model = YOLO('yolo11n.pt')
-        print("Using yolo11n.pt model.")
-        model_path = 'yolo11n.pt'
+        # Fall back to yolo11l.pt model
+        model = YOLO('yolo11l.pt')
+        print("Using yolo11l.pt model.")
+        model_path = 'yolo11l.pt'
         options['model'] = model_path
 
     # Settings for periodic memory cleanup
