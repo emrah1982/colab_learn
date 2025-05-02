@@ -29,8 +29,12 @@ def download_models_menu():
     print("\n===== YOLO11 Model Download =====")
     
     # Ask for save directory
-    default_dir = os.path.join(os.getcwd(), "yolo11_models")
-    save_dir = input(f"\nSave directory (default: {default_dir}): ") or default_dir
+    # Colab için doğrudan ana dizine kaydet
+    if 'google.colab' in sys.modules:
+        default_dir = "/content/yolo11_models"
+    else:
+        default_dir = os.path.join(os.getcwd(), "yolo11_models")
+
     
     # Ask for download type
     print("\nDownload options:")
