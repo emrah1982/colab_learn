@@ -19,7 +19,11 @@ def download_yolo11_models(save_dir=None, selected_models=None):
     """
     # Use default save directory if not specified
     if save_dir is None:
-        save_dir = "yolo11_models"
+        # Colab için doğrudan ana dizine kaydet
+        if 'google.colab' in sys.modules:
+            save_dir = "/content/yolo11_models"
+        else:
+            save_dir = "yolo11_models"
     
     # Create the directory if it doesn't exist
     os.makedirs(save_dir, exist_ok=True)
