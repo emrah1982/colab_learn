@@ -4,6 +4,8 @@
 import os
 import sys
 from pathlib import Path
+import shutil
+from datetime import datetime
 
 # Import components
 from setup_utils import check_gpu, install_required_packages
@@ -22,6 +24,56 @@ def is_colab():
         return True
     except:
         print("Running in local environment.")
+        return False
+
+def mount_google_drive():
+    """Google Drive'ı bağla"""
+    try:
+        from google.colab import drive
+        drive.mount('/content/drive')
+        print("Google Drive başarıyla bağlandı.")
+        return True
+    except Exception as e:
+        print(f"Google Drive bağlanırken hata oluştu: {e}")
+        return False
+
+def save_models_to_drive(drive_folder_path, best_file=True, last_file=True):
+    """En iyi ve son model dosyalarını Google Drive'a kaydet"""
+    if not is_colab():
+        print("Bu fonksiyon sadece Google Colab'da çalışır.")
+        return False
+    
+    # Google Drive'ın bağlı olduğunu kontrol et
+    if not os.path.exists('/content/drive'):
+        if not mount_google_drive():
+            return False
+    
+    # Kaynak klasörü kontrol et
+    source_dir = "runs/train/exp/weights"
+    if not os.path.exists(source_dir):
+        print(f"Kaynak klasör bulunamadı: {source_dir}")
+        return False
+    
+    # Hedef klasörü oluştur
+    os.makedirs(drive_folder_path, exist_ok=True)
+    
+    # Dosyaları kopyala
+    copied_files = []
+    
+    if best_file and os.path.exists(os.path.join(source_dir, "best.pt")):
+        shutil.copy2(os.path.join(source_dir, "best.pt"), os.path.join(drive_folder_path, "best.pt"))
+        copied_files.append("best.pt")
+    
+    if last_file and os.path.exists(os.path.join(source_dir, "last.pt")):
+        shutil.copy2(os.path.join(source_dir, "last.pt"), os.path.join(drive_folder_path, "last.pt"))
+        copied_files.append("last.pt")
+    
+    if copied_files:
+        print(f"Google Drive'a kaydedilen dosyalar: {', '.join(copied_files)}")
+        print(f"Kaydedilen konum: {drive_folder_path}")
+        return True
+    else:
+        print("Kopyalanacak dosya bulunamadı.")
         return False
 
 def download_models_menu():
@@ -106,27 +158,90 @@ def interactive_setup():
     # Ask for Roboflow URL
     roboflow_url = input("\nRoboflow URL (https://universe.roboflow.com/ds/...): ").strip()
 
+    # Proje kategorisini sor (hastalık, böcek vb.)
+    print("\nProje kategorisini seçin:")
+    print("1) Hastalık (disease)")
+    print("2) Böcek (insect)")
+    print("3) Diğer (özel belirtin)")
+    
+    while True:
+        category_choice = input("\nSeçiminiz [1-3] (varsayılan: 1): ") or "1"
+        category_options = {
+            "1": "diseases",
+            "2": "insect",
+            "3": "other"
+        }
+        
+        if category_choice in category_options:
+            category = category_options[category_choice]
+            if category == "other":
+                category = input("Özel kategori adını girin: ")
+            break
+        print("Lütfen 1-3 arasında bir sayı seçin.")
+
+    # Kaldığı yerden devam etme seçeneği
+    resume_training = False
+    resume_from_drive = False
+    checkpoint_path = None
+    
+    if is_colab():
+        has_previous = input("\nEğitimi kaldığı yerden devam ettirmek istiyor musunuz? (e/h, varsayılan: h): ").lower() or "h"
+        
+        if has_previous.startswith("e"):
+            resume_training = True
+            resume_from_drive = input("Önceki modeli Google Drive'dan yüklemek istiyor musunuz? (e/h, varsayılan: e): ").lower() or "e"
+            
+            if resume_from_drive.startswith("e"):
+                # Google Drive'ı bağla
+                if not os.path.exists('/content/drive'):
+                    mount_google_drive()
+                
+                # Drive'daki model yolunu sor
+                base_folder = f"/content/drive/MyDrive/Tarim/Kodlar/colab_egitim/{category}"
+                print(f"\nTahmini model klasörü: {base_folder}")
+                
+                custom_path = input(f"Model yolunu onaylayın veya yeni bir yol girin (varsayılan: {base_folder}): ") or base_folder
+                
+                # last.pt veya best.pt dosyasını seç
+                model_type = input("\nHangi model dosyasını kullanmak istiyorsunuz? (best/last, varsayılan: best): ").lower() or "best"
+                if model_type not in ["best", "last"]:
+                    model_type = "best"
+                
+                checkpoint_path = os.path.join(custom_path, f"{model_type}.pt")
+                
+                if os.path.exists(checkpoint_path):
+                    print(f"Model dosyası bulundu: {checkpoint_path}")
+                    
+                    # Hedef klasöre kopyala
+                    os.makedirs("runs/train/exp/weights", exist_ok=True)
+                    shutil.copy2(checkpoint_path, f"runs/train/exp/weights/{model_type}.pt")
+                    print(f"Model dosyası eğitim klasörüne kopyalandı.")
+                else:
+                    print(f"UYARI: Model dosyası bulunamadı: {checkpoint_path}")
+                    print("Eğitime sıfırdan başlanacak.")
+                    resume_training = False
+
     # Ask for number of epochs
     while True:
         try:
-            epochs = int(input("\nNumber of epochs [100-5000 recommended] (default: 500): ") or "500")
+            epochs = int(input("\nEpoch sayısı [100-5000 önerilen] (varsayılan: 500): ") or "500")
             if epochs <= 0:
-                print("Please enter a positive number.")
+                print("Lütfen pozitif bir sayı girin.")
                 continue
             break
         except ValueError:
-            print("Please enter a valid number.")
+            print("Lütfen geçerli bir sayı girin.")
 
     # Ask for model size
-    print("\nSelect model size:")
-    print("1) yolo11n.pt - Nano (fastest, lowest accuracy)")
-    print("2) yolo11s.pt - Small (fast, medium accuracy)")
-    print("3) yolo11m.pt - Medium (balanced)")
-    print("4) yolo11l.pt - Large (high accuracy, slow)")
-    print("5) yolo11x.pt - XLarge (highest accuracy, slowest)")
+    print("\nModel boyutunu seçin:")
+    print("1) yolo11n.pt - Nano (en hızlı, en düşük doğruluk)")
+    print("2) yolo11s.pt - Small (hızlı, orta doğruluk)")
+    print("3) yolo11m.pt - Medium (dengeli)")
+    print("4) yolo11l.pt - Large (yüksek doğruluk, yavaş)")
+    print("5) yolo11x.pt - XLarge (en yüksek doğruluk, en yavaş)")
 
     while True:
-        model_choice = input("\nYour choice [1-5] (default: 3): ") or "3"
+        model_choice = input("\nSeçiminiz [1-5] (varsayılan: 3): ") or "3"
         model_options = {
             "1": "yolo11n.pt",
             "2": "yolo11s.pt",
@@ -143,43 +258,63 @@ def interactive_setup():
             model_path = os.path.join(model_dir, model)
             
             if not os.path.exists(model_path):
-                print(f"\nModel {model} not found locally.")
-                download_now = input("Would you like to download it now? (y/n, default: y): ").lower() or "y"
+                print(f"\nModel {model} yerel olarak bulunamadı.")
+                download_now = input("Şimdi indirmek ister misiniz? (e/h, varsayılan: e): ").lower() or "e"
                 
-                if download_now.startswith("y"):
+                if download_now.startswith("e"):
                     os.makedirs(model_dir, exist_ok=True)
                     download_specific_model_type("detection", model[6], model_dir)
                 else:
-                    print(f"Model will be automatically downloaded during training.")
+                    print(f"Model eğitim sırasında otomatik olarak indirilecek.")
             
             break
-        print("Please select a number between 1-5.")
+        print("Lütfen 1-5 arasında bir sayı seçin.")
 
     # Ask for batch size
     while True:
         try:
-            batch_size = int(input("\nBatch size (default: 16, 8 or 4 recommended for low RAM): ") or "16")
+            batch_size = int(input("\nBatch size (varsayılan: 16, düşük RAM için 8 veya 4 önerilir): ") or "16")
             if batch_size <= 0:
-                print("Please enter a positive number.")
+                print("Lütfen pozitif bir sayı girin.")
                 continue
             break
         except ValueError:
-            print("Please enter a valid number.")
+            print("Lütfen geçerli bir sayı girin.")
 
     # Ask for image size
     while True:
         try:
-            img_size = int(input("\nImage size (default: 640, must be a multiple of 32): ") or "640")
+            img_size = int(input("\nGörüntü boyutu (varsayılan: 640, 32'nin katı olmalı): ") or "640")
             if img_size <= 0 or img_size % 32 != 0:
-                print("Please enter a positive number that is a multiple of 32.")
+                print("Lütfen 32'nin katı olan pozitif bir sayı girin.")
                 continue
             break
         except ValueError:
-            print("Please enter a valid number.")
+            print("Lütfen geçerli bir sayı girin.")
 
+    # Drive'a kayıt klasörü
+    drive_save_path = None
+    if is_colab():
+        print("\nEğitim sonuçlarını Google Drive'a kaydetme ayarları:")
+        save_to_drive_opt = input("Eğitim sonuçlarını Google Drive'a kaydetmek istiyor musunuz? (e/h, varsayılan: e): ").lower() or "e"
+        
+        if save_to_drive_opt.startswith("e"):
+            # Google Drive'ı bağla
+            if not os.path.exists('/content/drive'):
+                mount_google_drive()
+            
+            # Drive'daki model yolunu sor
+            default_drive_path = f"/content/drive/MyDrive/Tarim/Kodlar/colab_egitim/{category}"
+            drive_save_path = input(f"Modellerin kaydedileceği klasörü belirtin (varsayılan: {default_drive_path}): ") or default_drive_path
+            
+            # Otomatik olarak tarih/saat ekleme
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            drive_save_path = os.path.join(drive_save_path, timestamp)
+            print(f"Modeller şu klasöre kaydedilecek: {drive_save_path}")
+    
     # Option to use hyperparameter file
-    use_hyp = input("\nUse hyperparameter file (hyp.yaml)? (y/n) (default: y): ").lower() or "y"
-    use_hyp = use_hyp.startswith("y")
+    use_hyp = input("\nHiperparametre dosyası kullanılsın mı (hyp.yaml)? (e/h) (varsayılan: e): ").lower() or "e"
+    use_hyp = use_hyp.startswith("e")
 
     # Automatically check GPU/CPU
     device = check_gpu()
@@ -199,17 +334,20 @@ def interactive_setup():
         'optimizer': 'auto',
         'verbose': True,
         'exist_ok': True,
-        'resume': False,
-        'use_hyp': use_hyp
+        'resume': resume_training,
+        'use_hyp': use_hyp,
+        'category': category,
+        'drive_save_path': drive_save_path,
+        'checkpoint_path': checkpoint_path
     }
 
-    print("\n===== Selected Parameters =====")
+    print("\n===== Seçilen Parametreler =====")
     for key, value in options.items():
         print(f"{key}: {value}")
 
-    confirm = input("\nContinue with these parameters? (y/n): ").lower()
-    if confirm != 'y' and confirm != 'yes':
-        print("Setup cancelled.")
+    confirm = input("\nBu parametrelerle devam etmek istiyor musunuz? (e/h): ").lower()
+    if confirm != 'e' and confirm != 'evet':
+        print("Kurulum iptal edildi.")
         return None
 
     return options
@@ -217,18 +355,18 @@ def interactive_setup():
 def main():
     """Main function - optimized for Colab"""
     print("\n===== YOLO11 Training Framework =====")
-    print("1. Download models")
-    print("2. Training setup")
-    print("3. Exit")
+    print("1. Model indirme")
+    print("2. Eğitim kurulumu")
+    print("3. Çıkış")
     
-    choice = input("\nSelect an option (1-3): ")
+    choice = input("\nBir seçenek seçin (1-3): ")
     
     if choice == "1":
         # Download models
         download_models_menu()
         # After downloading, ask if they want to continue to training
-        train_now = input("\nProceed to training setup? (y/n, default: y): ").lower() or "y"
-        if not train_now.startswith("y"):
+        train_now = input("\nEğitim kurulumuna geçmek ister misiniz? (e/h, varsayılan: e): ").lower() or "e"
+        if not train_now.startswith("e"):
             return
         
     if choice == "1" or choice == "2":
@@ -250,40 +388,54 @@ def main():
         # Download dataset if Roboflow URL is provided
         if 'roboflow_url' in options and options['roboflow_url']:
             if not download_dataset(options['roboflow_url']):
-                print('Failed to download dataset. Exiting...')
+                print('Veri seti indirilemedi. Çıkılıyor...')
                 return
         else:
-            print('Please enter a valid Roboflow URL.')
+            print('Lütfen geçerli bir Roboflow URL girin.')
             return
 
-        # Train the model - artık run_training_with_memory_cleanup kullanmıyoruz
+        # Train the model
         results = train_model(options, hyp=hyperparameters, resume=options.get('resume', False), epochs=options['epochs'])
 
         if results:
-            print('Training completed!')
-            print(f'Results: {results}')
+            print('Eğitim tamamlandı!')
+            print(f'Sonuçlar: {results}')
+            
+            # Google Drive'a kaydet
+            if in_colab and options.get('drive_save_path'):
+                print("\nModeller Google Drive'a kaydediliyor...")
+                if save_models_to_drive(options['drive_save_path']):
+                    print("Modeller Google Drive'a başarıyla kaydedildi.")
+                else:
+                    print("Google Drive'a kaydetme işlemi başarısız oldu.")
         else:
-            print('Training failed or was interrupted.')
-
-        # Save to Drive if in Colab
-        if in_colab:
-            save_to_drive(options, results)
+            print('Eğitim başarısız oldu veya yarıda kesildi.')
+            
+            # Yarım kalan eğitimi Drive'a kaydet
+            if in_colab and options.get('drive_save_path'):
+                save_anyway = input("\nYarım kalan eğitimi Google Drive'a kaydetmek istiyor musunuz? (e/h, varsayılan: e): ").lower() or "e"
+                if save_anyway.startswith("e"):
+                    print("\nYarım kalan model Google Drive'a kaydediliyor...")
+                    if save_models_to_drive(options['drive_save_path']):
+                        print("Model Google Drive'a başarıyla kaydedildi.")
+                    else:
+                        print("Google Drive'a kaydetme işlemi başarısız oldu.")
     
     elif choice == "3":
-        print("Exiting...")
+        print("Çıkılıyor...")
     
     else:
-        print("Invalid choice. Exiting...")
+        print("Geçersiz seçenek. Çıkılıyor...")
 
 if __name__ == "__main__":
     try:
         # Call main function
         main()
     except KeyboardInterrupt:
-        print("\nInterrupted by user. Exiting...")
+        print("\nKullanıcı tarafından durduruldu. Çıkılıyor...")
     except Exception as e:
-        print(f"\nError occurred: {e}")
+        print(f"\nHata oluştu: {e}")
         import traceback
         traceback.print_exc()
     finally:
-        print("\nProcess completed.")
+        print("\nİşlem tamamlandı.")
