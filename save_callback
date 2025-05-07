@@ -1,0 +1,70 @@
+# Google Drive'a bağlanma ve eğitim kaydetme için kodu github_connect.py dosyanıza ekleyin
+from google.colab import drive
+import os
+import shutil
+import time
+from ultralytics.engine.callbacks.base import Callback
+
+# 1. Önce Drive'ı monte edin (bu kod sadece bir kez çalıştırılmalı)
+drive.mount('/content/drive')
+
+# 2. Google Drive'da dosyaların kaydedileceği klasörü belirleyin
+DRIVE_SAVE_PATH = '/content/drive/MyDrive/yolo11_egitim_kayitlari'
+os.makedirs(DRIVE_SAVE_PATH, exist_ok=True)
+
+# 3. Eğitim dosyalarını Google Drive'a kaydeden callback sınıfı
+class SaveToDriveCallback(Callback):
+    def __init__(self, save_interval=20, save_path=DRIVE_SAVE_PATH):
+        self.save_interval = save_interval  # Kaç epoch'ta bir kaydedileceği
+        self.save_path = save_path
+        self.last_saved = 0
+        
+    def _save_to_drive(self, trainer):
+        """Eğitim dosyalarını Drive'a kaydet"""
+        # Eğitim dizinini belirle
+        run_dir = trainer.args.save_dir
+        exp_path = os.path.dirname(run_dir) if run_dir.endswith('weights') else run_dir
+        
+        # Hedef klasör adını oluştur (timestamp ve epoch bilgisi ile)
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        target_dir = os.path.join(self.save_path, f"egitim_{timestamp}_epoch{trainer.epoch}")
+        os.makedirs(target_dir, exist_ok=True)
+        
+        # Ağırlık dosyalarını kopyala
+        weights_dir = os.path.join(exp_path, 'weights')
+        if os.path.exists(weights_dir):
+            os.makedirs(os.path.join(target_dir, 'weights'), exist_ok=True)
+            for model_file in ['last.pt', 'best.pt']:
+                src_file = os.path.join(weights_dir, model_file)
+                if os.path.exists(src_file):
+                    shutil.copy2(src_file, os.path.join(target_dir, 'weights', model_file))
+                    print(f"✅ {model_file} dosyası Drive'a kopyalandı.")
+        
+        # Yapılandırma dosyalarını kopyala
+        for config_file in ['args.yaml', 'hyp.yaml']:
+            src_file = os.path.join(exp_path, config_file)
+            if os.path.exists(src_file):
+                shutil.copy2(src_file, os.path.join(target_dir, config_file))
+                print(f"✅ {config_file} dosyası Drive'a kopyalandı.")
+        
+        print(f"📁 Eğitim dosyaları {target_dir} dizinine kaydedildi.")
+        self.last_saved = trainer.epoch
+    
+    def on_train_epoch_end(self, trainer):
+        """Her epoch sonunda kontrol et ve belirli aralıklarla kaydet"""
+        if trainer.epoch > 0 and trainer.epoch % self.save_interval == 0 and trainer.epoch != self.last_saved:
+            print(f"\n⏱️ Epoch {trainer.epoch} tamamlandı. Drive'a kaydediliyor...")
+            self._save_to_drive(trainer)
+    
+    def on_train_end(self, trainer):
+        """Eğitim tamamlandığında kaydet"""
+        print("\n🏁 Eğitim tamamlandı. Son durum Drive'a kaydediliyor...")
+        self._save_to_drive(trainer)
+    
+    def on_exception(self, trainer, exception):
+        """Eğitim sırasında hata oluşursa son durumu kaydet"""
+        print(f"\n❌ Eğitimde hata oluştu: {exception}\nMevcut durum Drive'a kaydediliyor...")
+        self._save_to_drive(trainer)
+
+# 4. main.py dosyanızı bu callback'i kullanacak şekilde güncelleyin
+# main.py dosyasına eklenecek kısım:
