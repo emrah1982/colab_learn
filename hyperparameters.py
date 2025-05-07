@@ -16,10 +16,10 @@ def create_hyperparameters_file():
     # Define hyperparameters
     hyperparameters = {
         # Learning rate and optimizer settings
-        "lr0": 0.01,
+        "lr0": 0.005,
         "lrf": 0.01,
         "momentum": 0.937,
-        "weight_decay": 0.001,  # Increased to prevent overfitting
+        "weight_decay": 0.0005,  # Increased to prevent overfitting
         "warmup_epochs": 3.0,
         "warmup_momentum": 0.8,
         "warmup_bias_lr": 0.1,
@@ -43,8 +43,8 @@ def create_hyperparameters_file():
         "flipud": 0.0,
         "fliplr": 0.5,
         "mosaic": 1.0,
-        "mixup": 0.0,
-        "copy_paste": 0.0,
+        "mixup": 0.1,
+        "copy_paste": 0.1,
 
         # Early stopping settings
         "patience": 20,
