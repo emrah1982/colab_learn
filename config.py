@@ -10,7 +10,7 @@ from pathlib import Path
 DEFAULT_CONFIG = {
     # Model settings
     'model': 'yolo11m.pt',
-    'imgsz': 640,
+    'imgsz': 512,
     'batch': 16,
     'epochs': 500,
     
@@ -38,7 +38,7 @@ DEFAULT_CONFIG = {
     # Hyperparameters
     'use_hyp': True,
     'lr0': 0.01,
-    'weight_decay': 0.001,
+    'weight_decay': 0.0005,
     'warmup_epochs': 3.0,
     'mosaic': 1.0,
     'fliplr': 0.5
