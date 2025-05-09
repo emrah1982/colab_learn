@@ -158,7 +158,7 @@ def interactive_setup():
     # Ask for batch size
     while True:
         try:
-            batch_size = int(input("\nBatch size (default: 16, 8 or 4 recommended for low RAM): ") or "16")
+            batch_size = int(input("\nBatch size (default: 32, 8 or 4 recommended for low RAM): ") or "32")
             if batch_size <= 0:
                 print("Please enter a positive number.")
                 continue
@@ -169,7 +169,7 @@ def interactive_setup():
     # Ask for image size
     while True:
         try:
-            img_size = int(input("\nImage size (default: 640, must be a multiple of 32): ") or "640")
+            img_size = int(input("\nImage size (default: 512, must be a multiple of 32): ") or "512")
             if img_size <= 0 or img_size % 32 != 0:
                 print("Please enter a positive number that is a multiple of 32.")
                 continue
