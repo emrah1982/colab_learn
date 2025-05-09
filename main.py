@@ -109,7 +109,7 @@ def interactive_setup():
     # Ask for number of epochs
     while True:
         try:
-            epochs = int(input("\nNumber of epochs [100-5000 recommended] (default: 500): ") or "500")
+            epochs = int(input("\nNumber of epochs [100-5000 recommended] (default: 2000): ") or "2000")
             if epochs <= 0:
                 print("Please enter a positive number.")
                 continue
@@ -126,7 +126,7 @@ def interactive_setup():
     print("5) yolo11x.pt - XLarge (highest accuracy, slowest)")
 
     while True:
-        model_choice = input("\nYour choice [1-5] (default: 3): ") or "3"
+        model_choice = input("\nYour choice [1-5] (default: 4): ") or "4"
         model_options = {
             "1": "yolo11n.pt",
             "2": "yolo11s.pt",
