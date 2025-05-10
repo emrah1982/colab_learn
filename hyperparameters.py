@@ -17,7 +17,7 @@ def create_hyperparameters_file():
     hyperparameters = {
         # Learning rate and optimizer settings
         "lr0": 0.005,
-        "lrf": 0.01,
+        "lrf": 0.0001,
         "momentum": 0.937,
         "weight_decay": 0.0005,  # Increased to prevent overfitting
         "warmup_epochs": 3.0,
@@ -47,7 +47,7 @@ def create_hyperparameters_file():
         "copy_paste": 0.1,
 
         # Early stopping settings
-        "patience": 50,
+        "patience": 150,
         "min_delta": 0.001,
 
         # Other settings
