@@ -47,8 +47,8 @@ def create_hyperparameters_file():
         "copy_paste": 0.1,
 
         # Early stopping settings
-        "patience": 150,
-        "min_delta": 0.001,
+        #"patience": 150,
+        #"min_delta": 0.001,
 
         # Other settings
         "label_smoothing": 0.0,
